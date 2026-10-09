@@ -9,6 +9,7 @@ import streamlit as st
 from src.api.data_collector import collect_repository_data, save_repository_data
 from src.database.db import save_to_database
 from src.analytics.metrics import calculate_issue_metrics, calculate_pr_metrics
+from src.analytics.repository_comparison import compare_repository_data
 
 
 # ==================================================
@@ -71,6 +72,9 @@ def svg_icon(name, size=24, color=BLUE):
         """,
         "contributors": """
             <path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8-1a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM9 13c-3.3 0-6 1.7-6 4v4h12v-4c0-2.3-2.7-4-6-4Zm8-1c-.8 0-1.5.1-2.2.3 1.4 1 2.2 2.3 2.2 3.7v4h4v-3c0-2.3-1.8-5-4-5Z"/>
+        """,
+        "git-compare": """
+            <path d="M6 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM6 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm12 10a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm0 2a1 1 0 1 1 0 2 1 1 0 0 1 0-2ZM5 9v3a4 4 0 0 0 4 4h4a2 2 0 0 1 2 2v1h2v-1a4 4 0 0 0-4-4H9a2 2 0 0 1-2-2V9H5Zm12-6h2v5a4 4 0 0 1-4 4h-2v-2h2a2 2 0 0 0 2-2V3Z"/>
         """,
     }
 
@@ -747,6 +751,7 @@ NAV_ITEMS = [
     ("Issues", "issues"),
     ("Pull Requests", "pulls"),
     ("Contributors", "contributors"),
+    ("Repository Comparison", "git-compare"),
 ]
 
 if "active_tab" not in st.session_state:
@@ -774,7 +779,7 @@ def render_navigation_item(label, icon_name):
             st.rerun()
 
 
-nav_columns = st.columns(4, gap="small")
+nav_columns = st.columns(5, gap="small")
 for column, (label, icon_name) in zip(nav_columns, NAV_ITEMS):
     with column:
         render_navigation_item(label, icon_name)
@@ -1208,3 +1213,196 @@ st.caption(
     "Open-Source Maintainer Insights Platform | "
     "Python • Pandas • SQLite • Streamlit • Plotly"
 )
+
+
+# ==================================================
+# 13. REPOSITORY COMPARISON
+# ==================================================
+
+if st.session_state["active_tab"] == "Repository Comparison":
+    st.subheader("Repository Comparison")
+    st.markdown(
+        '<p class="section-note">'
+        'Compare collected issue and pull-request metrics from two public '
+        'GitHub repositories.'
+        '</p>',
+        unsafe_allow_html=True,
+    )
+
+    st.info(
+        "Comparison uses up to 100 issues and 100 pull requests per "
+        "repository. Results represent collected records, not necessarily "
+        "the repository's complete history."
+    )
+
+    left_col, right_col = st.columns(2, gap="large")
+
+    with left_col:
+        st.markdown("#### First repository")
+        owner_a = st.text_input(
+            "GitHub owner",
+            value="pandas-dev",
+            key="comparison_owner_a",
+        ).strip()
+        repo_a = st.text_input(
+            "Repository name",
+            value="pandas",
+            key="comparison_repo_a",
+        ).strip()
+
+    with right_col:
+        st.markdown("#### Second repository")
+        owner_b = st.text_input(
+            "GitHub owner",
+            value="numpy",
+            key="comparison_owner_b",
+        ).strip()
+        repo_b = st.text_input(
+            "Repository name",
+            value="numpy",
+            key="comparison_repo_b",
+        ).strip()
+
+    if st.button(
+        "Compare repositories",
+        type="primary",
+        use_container_width=True,
+        key="compare_repositories_button",
+    ):
+        if not all([owner_a, repo_a, owner_b, repo_b]):
+            st.error("Please enter an owner and repository name for both.")
+        elif (
+            owner_a.lower() == owner_b.lower()
+            and repo_a.lower() == repo_b.lower()
+        ):
+            st.error("Please enter two different repositories.")
+        else:
+            try:
+                with st.spinner("Collecting repository data..."):
+                    issues_a, prs_a = collect_repository_data(
+                        owner_a, repo_a
+                    )
+                    issues_b, prs_b = collect_repository_data(
+                        owner_b, repo_b
+                    )
+
+                    result_a = compare_repository_data(
+                        f"{owner_a}/{repo_a}", issues_a, prs_a
+                    )
+                    result_b = compare_repository_data(
+                        f"{owner_b}/{repo_b}", issues_b, prs_b
+                    )
+
+                    st.session_state["repository_comparison_results"] = [
+                        result_a,
+                        result_b,
+                    ]
+
+            except Exception as error:
+                st.error(f"Unable to compare repositories: {error}")
+
+    results = st.session_state.get("repository_comparison_results")
+
+    if results:
+        comparison_df = pd.DataFrame(results)
+
+        st.markdown("### Issue comparison")
+        issue_columns = st.columns(2)
+
+        issue_metrics_to_show = [
+            ("Collected issues", "issues_collected"),
+            ("Open issues", "open_issues"),
+            ("Aging issues", "aging_issues"),
+            ("Issue closure rate (%)", "issue_closure_rate"),
+            ("Median resolution (days)", "median_resolution_days"),
+        ]
+
+        for column, result in zip(issue_columns, results):
+            with column:
+                st.markdown(f"#### {result['repository']}")
+                for label, key in issue_metrics_to_show:
+                    st.metric(label, result[key])
+
+        issue_chart = px.bar(
+            comparison_df,
+            x="repository",
+            y=["open_issues", "aging_issues"],
+            barmode="group",
+            title="Open and aging issues",
+            labels={
+                "repository": "Repository",
+                "value": "Collected records",
+                "variable": "Metric",
+            },
+        )
+        issue_chart.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font_color=TEXT_COLOR,
+            yaxis=dict(gridcolor=GRID_COLOR, rangemode="tozero"),
+        )
+        st.plotly_chart(
+            issue_chart,
+            use_container_width=True,
+            config={"displayModeBar": False},
+            theme=None,
+        )
+
+        st.divider()
+        st.markdown("### Pull-request comparison")
+        pr_columns = st.columns(2)
+
+        pr_metrics_to_show = [
+            ("Collected pull requests", "pull_requests_collected"),
+            ("Open pull requests", "open_pull_requests"),
+            ("Merged pull requests", "merged_pull_requests"),
+            ("PR closure rate (%)", "pr_closure_rate"),
+            ("Median closing time (days)", "median_pr_closing_days"),
+        ]
+
+        for column, result in zip(pr_columns, results):
+            with column:
+                st.markdown(f"#### {result['repository']}")
+                for label, key in pr_metrics_to_show:
+                    st.metric(label, result[key])
+
+                if result["merge_rate_available"]:
+                    st.metric("PR merge rate (%)", result["pr_merge_rate"])
+                else:
+                    st.caption("Merge-rate data is unavailable.")
+
+        pr_chart = px.bar(
+            comparison_df,
+            x="repository",
+            y=["open_pull_requests", "merged_pull_requests"],
+            barmode="group",
+            title="Open and merged pull requests",
+            labels={
+                "repository": "Repository",
+                "value": "Collected records",
+                "variable": "Metric",
+            },
+        )
+        pr_chart.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font_color=TEXT_COLOR,
+            yaxis=dict(gridcolor=GRID_COLOR, rangemode="tozero"),
+        )
+        st.plotly_chart(
+            pr_chart,
+            use_container_width=True,
+            config={"displayModeBar": False},
+            theme=None,
+        )
+
+        st.caption(
+            "Comparison data is held in the current Streamlit session. "
+            "It does not overwrite the main dashboard's CSV files."
+        )
+    else:
+        show_empty_state(
+            "No comparison results yet",
+            "Enter two public GitHub repositories and select Compare repositories.",
+        )
+
