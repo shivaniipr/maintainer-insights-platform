@@ -27,6 +27,11 @@ data/*.db
 data/*.sqlite
 data/*.sqlite3
 
+
+# Local database files and collected GitHub data
+
+data/
+
 # Logs
 
 *.log

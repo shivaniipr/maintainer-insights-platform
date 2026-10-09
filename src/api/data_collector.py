@@ -14,6 +14,7 @@ DATA_COLUMNS = [
     "created_at",
     "updated_at",
     "closed_at",
+    "merged_at",
     "user",
 ]
 
@@ -25,7 +26,7 @@ def fetch_items(
     limit=100,
     exclude_pull_requests=False,
 ):
-    """Fetch issues or pull requests using the GitHub Search API."""
+    """Fetch issues or pull requests using GitHub Search API."""
     if limit <= 0:
         return []
 
@@ -56,15 +57,13 @@ def fetch_items(
             },
             timeout=20,
         )
-
         response.raise_for_status()
+
         batch = response.json().get("items", [])
 
         if not batch:
             break
 
-        # GitHub's search endpoint can return pull requests
-        # alongside issues in some search situations.
         if item_type == "issues" and exclude_pull_requests:
             batch = [
                 item for item in batch
@@ -82,11 +81,19 @@ def fetch_items(
 
 
 def clean_items(items):
-    """Convert GitHub API records into a consistent data structure."""
+    """Convert GitHub API records into consistent dictionaries."""
     cleaned = []
 
     for item in items:
         user_data = item.get("user")
+        pull_request_data = item.get("pull_request") or {}
+
+        # Search API responses may expose merge information inside
+        # the pull_request object rather than at the top level.
+        merged_at = item.get("merged_at")
+
+        if merged_at is None:
+            merged_at = pull_request_data.get("merged_at")
 
         cleaned.append(
             {
@@ -96,6 +103,7 @@ def clean_items(items):
                 "created_at": item.get("created_at"),
                 "updated_at": item.get("updated_at"),
                 "closed_at": item.get("closed_at"),
+                "merged_at": merged_at,
                 "user": (
                     user_data.get("login")
                     if user_data
@@ -108,7 +116,7 @@ def clean_items(items):
 
 
 def collect_repository_data(owner, repo):
-    """Fetch and return issue and pull request DataFrames."""
+    """Fetch issues and pull requests as DataFrames."""
     issues = fetch_items(
         owner,
         repo,
@@ -138,14 +146,18 @@ def collect_repository_data(owner, repo):
 
 
 def save_repository_data(issues_df, prs_df):
-    """Save issue and pull request DataFrames as CSV files."""
+    """Save collected records to CSV files."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    issues_path = DATA_DIR / "issues.csv"
-    prs_path = DATA_DIR / "pull_requests.csv"
+    issues_df.to_csv(
+        DATA_DIR / "issues.csv",
+        index=False,
+    )
 
-    issues_df.to_csv(issues_path, index=False)
-    prs_df.to_csv(prs_path, index=False)
+    prs_df.to_csv(
+        DATA_DIR / "pull_requests.csv",
+        index=False,
+    )
 
 
 if __name__ == "__main__":
@@ -159,7 +171,13 @@ if __name__ == "__main__":
 
         print("Issues collected:", len(issues_df))
         print("Pull requests collected:", len(prs_df))
+        print("Issue columns:", list(issues_df.columns))
+        print("PR columns:", list(prs_df.columns))
         print("CSV files saved successfully.")
+
+        if "merged_at" in prs_df.columns:
+            merged_count = prs_df["merged_at"].notna().sum()
+            print("PRs with merge timestamps:", merged_count)
 
     except requests.exceptions.RequestException as error:
         print("GitHub API request failed:", error)
