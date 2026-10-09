@@ -68,22 +68,24 @@ def collect_repository_data(owner, repo):
         limit=100,
     )
 
-    def clean_items(items):
-        return [
-            {
-                "number": item["number"],
-                "title": item["title"],
-                "state": item["state"],
-                "created_at": item["created_at"],
-                "updated_at": item["updated_at"],
-                "user": (
-                    item["user"]["login"]
-                    if item.get("user")
-                    else None
-                ),
-            }
-            for item in items
-        ]
+    
+def clean_items(items):
+    return [
+        {
+            "number": item["number"],
+            "title": item["title"],
+            "state": item["state"],
+            "created_at": item["created_at"],
+            "updated_at": item["updated_at"],
+            "closed_at": item.get("closed_at"),
+            "user": (
+                item["user"]["login"]
+                if item.get("user")
+                else None
+            ),
+        }
+        for item in items
+    ]
 
     return (
         pd.DataFrame(clean_items(issues)),
