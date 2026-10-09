@@ -1,42 +1,72 @@
-
 import requests
 import pandas as pd
 from pathlib import Path
 
 GITHUB_API_URL = "https://api.github.com"
 DATA_DIR = Path("data")
+PER_PAGE = 100
 
 
-def fetch_items(owner, repo, item_type, limit=100):
-    """Fetch up to 100 issues or pull requests from GitHub."""
-    url = f"{GITHUB_API_URL}/repos/{owner}/{repo}/{item_type}"
+def fetch_items(owner, repo, item_type, limit=100,
+                exclude_pull_requests=False):
+    """Fetch issues or pull requests using GitHub Search API."""
+    if limit <= 0:
+        return []
 
-    response = requests.get(
-        url,
-        params={
-            "state": "all",
-            "per_page": min(limit, 100),
-            "sort": "created",
-            "direction": "desc",
-        },
-        headers={"Accept": "application/vnd.github+json"},
-        timeout=20,
-    )
-    response.raise_for_status()
+    if item_type not in {"issues", "pulls"}:
+        raise ValueError("item_type must be 'issues' or 'pulls'")
 
-    return response.json()[:limit]
+    # Search for issues and PRs separately to avoid mixed results.
+    item_filter = "is:issue" if item_type == "issues" else "is:pr"
+
+    url = f"{GITHUB_API_URL}/search/issues"
+    items = []
+    page = 1
+
+    while len(items) < limit:
+        page_size = min(PER_PAGE, limit - len(items))
+
+        response = requests.get(
+            url,
+            params={
+                "q": f"repo:{owner}/{repo} {item_filter}",
+                "per_page": page_size,
+                "page": page,
+                "sort": "created",
+                "order": "desc",
+            },
+            headers={"Accept": "application/vnd.github+json"},
+            timeout=20,
+        )
+        response.raise_for_status()
+
+        batch = response.json().get("items", [])
+
+        if not batch:
+            break
+
+        items.extend(batch)
+
+        if len(batch) < page_size:
+            break
+
+        page += 1
+
+    return items[:limit]
 
 
 def collect_repository_data(owner, repo):
     """Collect and structure issue and pull request data."""
-    issues = fetch_items(owner, repo, "issues")
-    pull_requests = fetch_items(owner, repo, "pulls")
+    issues = fetch_items(
+        owner, repo, "issues",
+        limit=100,
+        exclude_pull_requests=True,
+    )
 
-    # GitHub's issues endpoint also includes pull requests.
-    issues = [
-        item for item in issues
-        if "pull_request" not in item
-    ]
+    pull_requests = fetch_items(
+        owner, repo, "pulls",
+        limit=100,
+    )
 
     def clean_items(items):
         return [
