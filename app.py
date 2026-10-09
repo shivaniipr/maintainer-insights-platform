@@ -1,4 +1,3 @@
-
 from pathlib import Path
 
 import pandas as pd
@@ -36,100 +35,136 @@ st.set_page_config(
 
 
 # ==================================================
-# 2. PROFESSIONAL DASHBOARD STYLING
+# 2. PROFESSIONAL DARK DASHBOARD STYLING
 # ==================================================
 
 st.markdown(
     """
     <style>
     .stApp {
-        background-color: #F3F7FC;
-        color: #172B4D;
+        background: #0B1120;
+        color: #E5EDF8;
+    }
+
+    [data-testid="stHeader"] {
+        background: rgba(11, 17, 32, 0.85);
     }
 
     [data-testid="stSidebar"] {
-        background-color: #102A43;
+        background: #10192A;
+        border-right: 1px solid #26344A;
     }
 
     [data-testid="stSidebar"] * {
-        color: #FFFFFF;
+        color: #E5EDF8;
     }
 
     [data-testid="stSidebar"] input {
-        color: #172B4D !important;
-        background-color: #FFFFFF !important;
+        background: #151F32 !important;
+        color: #E5EDF8 !important;
+        border-color: #34445D !important;
     }
 
-    [data-testid="stSidebar"] [data-baseweb="select"] * {
-        color: #172B4D !important;
+    [data-testid="stSidebar"] [data-baseweb="select"] > div {
+        background: #151F32;
+        border-color: #34445D;
     }
 
     .hero {
-        background: linear-gradient(115deg, #102A43, #176B87);
+        background: linear-gradient(
+            120deg,
+            #172554 0%,
+            #15365C 55%,
+            #164E63 100%
+        );
         padding: 30px;
+        border: 1px solid #2B4B73;
         border-radius: 16px;
-        color: #FFFFFF;
+        color: #F8FAFC;
         margin-bottom: 24px;
-        box-shadow: 0 5px 18px rgba(16, 42, 67, 0.12);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
     }
 
     .hero h1 {
-        color: #FFFFFF;
+        color: #F8FAFC;
         font-size: 30px;
-        font-weight: 700;
+        font-weight: 750;
         margin: 0 0 10px 0;
     }
 
     .hero p {
-        color: #E3EDF5;
+        color: #D3E3F7;
         font-size: 15px;
+        line-height: 1.7;
         margin: 0;
-        line-height: 1.6;
     }
 
     .section-note {
-        color: #52667A;
+        color: #9AABC2;
         font-size: 14px;
+        line-height: 1.6;
     }
 
     div[data-testid="stMetric"] {
-        background: #FFFFFF;
-        border: 1px solid #DCE6F0;
-        border-radius: 12px;
-        padding: 18px;
-        box-shadow: 0 3px 10px rgba(16, 42, 67, 0.04);
+        background: #151F32;
+        border: 1px solid #293951;
+        border-radius: 14px;
+        padding: 18px 20px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
     }
 
     div[data-testid="stMetricLabel"] {
-        color: #52667A;
+        color: #9AABC2;
     }
 
     div[data-testid="stMetricValue"] {
-        color: #102A43;
+        color: #F1F5F9;
         font-weight: 700;
     }
 
+    div[data-testid="stMetricDelta"] {
+        font-weight: 600;
+    }
+
     div[data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #FFFFFF;
-        border-radius: 12px;
-        border-color: #DCE6F0;
+        background: #151F32;
+        border-radius: 14px;
+        border-color: #293951;
     }
 
     div.stButton > button,
     div.stDownloadButton > button {
-        border-radius: 8px;
+        border-radius: 9px;
         font-weight: 600;
+        min-height: 40px;
+        transition: border-color 0.15s ease;
+    }
+
+    div.stButton > button:hover,
+    div.stDownloadButton > button:hover {
+        border-color: #60A5FA;
+        color: #93C5FD;
     }
 
     div[data-testid="stPlotlyChart"] {
-        background: #FFFFFF;
-        border: 1px solid #E0E8F0;
-        border-radius: 12px;
-        padding: 10px;
+        background: #151F32;
+        border: 1px solid #293951;
+        border-radius: 14px;
+        padding: 8px;
+    }
+
+    [data-testid="stDataFrame"] {
+        border: 1px solid #293951;
+        border-radius: 10px;
+        overflow: hidden;
     }
 
     h1, h2, h3 {
-        color: #102A43;
+        color: #F1F5F9;
+    }
+
+    hr {
+        border-color: #293951;
     }
     </style>
     """,
@@ -143,18 +178,24 @@ st.markdown(
 
 @st.cache_data
 def load_csv_data(file_path):
-    """Load a CSV file safely."""
+    """Load a CSV file safely and cache its contents."""
+
     if not file_path.exists():
         return pd.DataFrame()
 
     try:
         return pd.read_csv(file_path)
-    except (pd.errors.EmptyDataError, pd.errors.ParserError):
+    except (
+        pd.errors.EmptyDataError,
+        pd.errors.ParserError,
+        UnicodeDecodeError,
+    ):
         return pd.DataFrame()
 
 
 def display_dataframe(dataframe, message):
     """Display a data table or an informative empty state."""
+
     if dataframe.empty:
         st.info(message)
     else:
@@ -166,7 +207,7 @@ def display_dataframe(dataframe, message):
 
 
 def make_state_chart(dataframe, title):
-    """Display a clear bar chart showing record status."""
+    """Display a dark-themed bar chart showing record status."""
 
     if dataframe.empty or "state" not in dataframe.columns:
         st.info(
@@ -179,6 +220,7 @@ def make_state_chart(dataframe, title):
         dataframe["state"]
         .fillna("Unknown")
         .astype(str)
+        .str.strip()
         .str.title()
         .value_counts()
         .rename_axis("Status")
@@ -196,46 +238,64 @@ def make_state_chart(dataframe, title):
         color="Status",
         text="Records",
         title=title,
-        color_discrete_sequence=[
-            "#176B87",
-            "#4C8DAE",
-            "#A5C9DF",
-        ],
+        color_discrete_map={
+            "Open": "#60A5FA",
+            "Closed": "#34D399",
+            "Unknown": "#94A3B8",
+        },
+        template="plotly_dark",
     )
 
     figure.update_traces(
         textposition="outside",
+        textfont=dict(
+            color="#E5EDF8",
+            size=12,
+        ),
         cliponaxis=False,
         marker_line_width=0,
     )
 
     figure.update_layout(
-        height=330,
+        height=350,
         autosize=True,
-        paper_bgcolor="#FFFFFF",
-        plot_bgcolor="#F7FAFD",
+        paper_bgcolor="#151F32",
+        plot_bgcolor="#111A2B",
         font=dict(
             family="Arial, sans-serif",
-            size=13,
-            color="#172B4D",
+            size=12,
+            color="#E5EDF8",
         ),
         title=dict(
             text=title,
-            font=dict(size=18, color="#102A43"),
+            font=dict(
+                size=18,
+                color="#F1F5F9",
+            ),
             x=0.03,
+            xanchor="left",
         ),
         showlegend=False,
-        margin=dict(t=65, b=45, l=35, r=25),
+        margin=dict(
+            t=65,
+            b=45,
+            l=35,
+            r=25,
+        ),
         xaxis=dict(
             title="Status",
             showgrid=False,
+            zeroline=False,
             fixedrange=True,
+            tickfont=dict(color="#CBD5E1"),
         ),
         yaxis=dict(
             title="Number of records",
             rangemode="tozero",
-            gridcolor="#E3EAF2",
+            gridcolor="#293951",
+            zerolinecolor="#293951",
             fixedrange=True,
+            tickfont=dict(color="#CBD5E1"),
         ),
     )
 
@@ -243,11 +303,13 @@ def make_state_chart(dataframe, title):
         figure,
         use_container_width=True,
         config={"displayModeBar": False},
+        theme=None,
     )
 
 
 def show_empty_state(title, description):
     """Display a helpful message when a section has no data."""
+
     with st.container(border=True):
         st.markdown(f"### {title}")
         st.write(description)
@@ -413,8 +475,8 @@ with overview_tab:
 
     st.markdown(
         '<p class="section-note">'
-        'A high-level view of the collected repository records.'
-        '</p>',
+        "A high-level view of the collected repository records."
+        "</p>",
         unsafe_allow_html=True,
     )
 
@@ -423,13 +485,9 @@ with overview_tab:
 
     total_issues = issue_metrics.get("total_issues", 0)
     open_issues = issue_metrics.get("open_issues", 0)
-    closed_issues = issue_metrics.get("closed_issues", 0)
-
     total_prs = pr_metrics.get("total_pull_requests", 0)
     open_prs = pr_metrics.get("open_pull_requests", 0)
-    closed_prs = pr_metrics.get("closed_pull_requests", 0)
 
-    # Main KPI cards
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
@@ -461,13 +519,12 @@ with overview_tab:
         )
 
     st.divider()
-
     st.subheader("Repository activity breakdown")
 
     st.markdown(
         '<p class="section-note">'
-        'Compare open and closed records in the data collected so far.'
-        '</p>',
+        "Compare open and closed records in the data collected so far."
+        "</p>",
         unsafe_allow_html=True,
     )
 
@@ -486,14 +543,12 @@ with overview_tab:
         )
 
     st.divider()
-
-    # Key observations
     st.subheader("Key observations")
 
     st.markdown(
         '<p class="section-note">'
-        'Quick insights to help maintainers identify potential bottlenecks.'
-        '</p>',
+        "Quick insights to help maintainers identify potential bottlenecks."
+        "</p>",
         unsafe_allow_html=True,
     )
 
@@ -512,10 +567,14 @@ with overview_tab:
                 help="Open issues older than 30 days.",
             )
 
-            st.progress(
-                min(aging_count / max(open_issues, 1), 1.0)
+            progress_value = (
+                min(aging_count / open_issues, 1.0)
                 if open_issues > 0
-                else 0.0,
+                else 0.0
+            )
+
+            st.progress(
+                progress_value,
                 text=(
                     f"{aging_count} of {open_issues} open issues "
                     "are older than 30 days"
@@ -566,7 +625,6 @@ with overview_tab:
                 )
 
     st.divider()
-
     st.subheader("Collection summary")
 
     summary_col1, summary_col2, summary_col3 = st.columns(3)
@@ -578,8 +636,7 @@ with overview_tab:
         st.metric("PRs collected", total_prs)
 
     with summary_col3:
-        total_records = total_issues + total_prs
-        st.metric("Total records", total_records)
+        st.metric("Total records", total_issues + total_prs)
 
     st.caption(
         "These insights describe the collected records, not necessarily "
@@ -745,7 +802,6 @@ with contributors_tab:
         issue_users = issue_users.rename(
             columns={"user": "contributor"}
         )
-        issue_users["source"] = "Issue"
         contributor_frames.append(issue_users)
 
     if not prs_df.empty and "user" in prs_df.columns:
@@ -753,7 +809,6 @@ with contributors_tab:
         pr_users = pr_users.rename(
             columns={"user": "contributor"}
         )
-        pr_users["source"] = "Pull Request"
         contributor_frames.append(pr_users)
 
     if contributor_frames:
@@ -785,29 +840,55 @@ with contributors_tab:
                 title="Most active contributors in collected records",
                 text="Collected Records",
                 color="Collected Records",
-                color_continuous_scale=["#A5C9DF", "#176B87"],
+                color_continuous_scale=[
+                    "#233A59",
+                    "#60A5FA",
+                ],
+                template="plotly_dark",
             )
 
             chart.update_traces(
                 textposition="outside",
+                textfont=dict(color="#E5EDF8"),
                 cliponaxis=False,
+                marker_line_width=0,
             )
 
             chart.update_layout(
                 height=400,
-                paper_bgcolor="#FFFFFF",
-                plot_bgcolor="#F7FAFD",
-                font=dict(color="#172B4D", size=12),
-                margin=dict(t=65, b=100, l=25, r=25),
+                paper_bgcolor="#151F32",
+                plot_bgcolor="#111A2B",
+                font=dict(
+                    family="Arial, sans-serif",
+                    color="#E5EDF8",
+                    size=12,
+                ),
+                title=dict(
+                    font=dict(
+                        size=18,
+                        color="#F1F5F9",
+                    ),
+                    x=0.03,
+                    xanchor="left",
+                ),
+                margin=dict(
+                    t=65,
+                    b=100,
+                    l=25,
+                    r=25,
+                ),
                 xaxis=dict(
                     title="Contributor",
                     tickangle=-35,
                     showgrid=False,
+                    tickfont=dict(color="#CBD5E1"),
                 ),
                 yaxis=dict(
                     title="Collected records",
                     rangemode="tozero",
-                    gridcolor="#E3EAF2",
+                    gridcolor="#293951",
+                    zerolinecolor="#293951",
+                    tickfont=dict(color="#CBD5E1"),
                 ),
                 coloraxis_showscale=False,
             )
@@ -816,6 +897,7 @@ with contributors_tab:
                 chart,
                 use_container_width=True,
                 config={"displayModeBar": False},
+                theme=None,
             )
 
             st.markdown("#### Contributor summary")
